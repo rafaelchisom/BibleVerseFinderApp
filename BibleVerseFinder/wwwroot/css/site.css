@@ -1,0 +1,68 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+    background: linear-gradient(to bottom, #fdf6e3, #f5e7c4);
+    font-family: "Georgia", serif;
+    color: #2f2f2f;
+}
+
+
+h1 {
+    font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+}
+
+.verse-card {
+    background: #f8f9fa;
+    border-left: 5px solid #b39ddb;
+}
+.fade-in {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeIn 0.8s ease forwards;
+}
+
+@keyframes fadeIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+h1, h2, h3, h4, h5 {
+    font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+}
+
+.verse-card {
+    background-color: rgba(255, 255, 255, 0.8);
+    border-left: 5px solid #bfa77f;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+blockquote {
+    font-style: italic;
+    color: #5c432e;
+    background-color: #f7f1e3;
+    padding: 1rem;
+    border-left: 5px solid #d2b48c;
+    border-radius: 0.5rem;
+}
+

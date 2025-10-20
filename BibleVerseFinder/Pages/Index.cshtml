@@ -1,0 +1,50 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Bible Verse Finder";
+}
+
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Find Encouragement in Scripture</h1>
+
+    <form method="post" class="mb-4 text-center" onsubmit="showSpinner()">
+        <input asp-for="Topic" class="form-control form-control-lg w-75 mx-auto" placeholder="Enter a topic like 'anxiety', 'grief', 'hope'..." />
+        <button type="submit" class="btn btn-primary mt-3">Get Verses</button>
+    </form>
+
+    <!-- Spinner -->
+    <div id="loadingSpinner" class="text-center mt-4" style="display:none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Listening for God’s still small voice…</p>
+    </div>
+
+    @if (Model.Verses.Any())
+    {
+        <div class="verses">
+            @foreach (var verse in Model.Verses)
+            {
+                <div class="verse-card mb-4 p-3 rounded shadow-sm border bg-light fade-in">
+                    <h5><strong>@verse.Verse</strong></h5>
+                    <p class="fst-italic">"@verse.Text"</p>
+                    <p class="text-muted">@verse.Note</p>
+                </div>
+            }
+
+            <div class="text-center mt-5 fade-in">
+                <blockquote class="blockquote">
+                    <p class="mb-0 fw-bold text-success">@Model.Encouragement</p>
+                </blockquote>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        function showSpinner() {
+            document.getElementById("loadingSpinner").style.display = "block";
+        }
+    </script>
+}
