@@ -29,6 +29,7 @@ Format the response as JSON. Each item should include:
 - ""verse"": the reference (e.g., ""Philippians 4:6-7"")
 - ""text"": the NIV verse text
 - ""note"": a one-sentence explanation
+- Respond only with valid JSON, no markdown or commentary.
 
 Then include a short, encouraging message after the JSON (e.g., ""Take heart, God is near."")
 ";
