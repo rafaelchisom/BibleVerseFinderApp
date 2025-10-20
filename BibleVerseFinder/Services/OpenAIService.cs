@@ -123,8 +123,9 @@ Then include a short, encouraging message after the JSON (e.g., ""Take heart, Go
 
             // Extract encouragement text
             string encouragement = (endIndex + 1 < message.Length)
-        ? message.Substring(endIndex + 1).Trim()
-        : "";
+     ? message.Substring(endIndex + 1).TrimStart('}', '\n', '\r', ' ', '.', '-').Trim()
+     : "";
+
 
             List<BibleVerse> verses = new();
 
