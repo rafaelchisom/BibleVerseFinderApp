@@ -52,13 +52,62 @@ Then include a short, encouraging message after the JSON (e.g., ""Take heart, Go
             request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                return (new List<BibleVerse>
+    {
+        new BibleVerse
+        {
+            Verse = "Error",
+            Text = $"OpenAI request failed with status code {response.StatusCode}.",
+            Note = "Please try again later."
+        }
+    }, "");
+            }
+
             var body = await response.Content.ReadAsStringAsync();
 
-            var message = JsonDocument.Parse(body)
-                .RootElement.GetProperty("choices")[0]
-                .GetProperty("message")
-                .GetProperty("content")
-                .GetString();
+            string message;
+
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+
+            // Handle OpenAI error response
+            if (root.TryGetProperty("error", out JsonElement errorElement))
+            {
+                var errorMessage = errorElement.GetProperty("message").GetString();
+                return (new List<BibleVerse>
+    {
+        new BibleVerse
+        {
+            Verse = "OpenAI Error",
+            Text = "API responded with an error.",
+            Note = errorMessage
+        }
+    }, "Please try again later.");
+            }
+
+            // Check choices and extract content safely
+            if (root.TryGetProperty("choices", out JsonElement choices) &&
+                choices.GetArrayLength() > 0 &&
+                choices[0].TryGetProperty("message", out JsonElement msgElement) &&
+                msgElement.TryGetProperty("content", out JsonElement contentElement))
+            {
+                message = contentElement.GetString();
+            }
+            else
+            {
+                return (new List<BibleVerse>
+    {
+        new BibleVerse
+        {
+            Verse = "No Response",
+            Text = "Could not find a valid response from OpenAI.",
+            Note = "Please check your input or try again shortly."
+        }
+    }, "");
+            }
+
 
             // 🧹 Clean the GPT output
             message = message.Replace("```json", "")
