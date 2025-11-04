@@ -15,6 +15,8 @@ public class IndexModel : PageModel
 
     [BindProperty]
     public string Topic { get; set; }
+    public string LastTopic { get; set; }
+
 
     public List<BibleVerse> Verses { get; set; } = new();
     public string Encouragement { get; set; }
@@ -24,6 +26,7 @@ public class IndexModel : PageModel
         if (!string.IsNullOrWhiteSpace(Topic))
         {
             (Verses, Encouragement) = await _openAIService.GetBibleVersesAsync(Topic);
+            LastTopic = Topic;
         }
     }
 }

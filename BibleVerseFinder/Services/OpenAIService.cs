@@ -68,6 +68,8 @@ Then include a short, encouraging message after the JSON (e.g., ""Take heart, Go
             var body = await response.Content.ReadAsStringAsync();
 
             string message;
+           
+
 
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;

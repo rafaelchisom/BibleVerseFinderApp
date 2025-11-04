@@ -9,7 +9,7 @@
 
     <form method="post" class="mb-4 text-center" onsubmit="showSpinner()">
         <input asp-for="Topic" class="form-control form-control-lg w-75 mx-auto" placeholder="Enter a topic like 'anxiety', 'grief', 'hope'..." />
-        <button type="submit" class="btn btn-primary mt-3">Get Verses</button>
+        <button type="submit" class="btn btn-primary mt-3">📖 Get Verses</button>
     </form>
 
     <!-- Spinner -->
@@ -22,29 +22,50 @@
 
     @if (Model.Verses.Any())
     {
-        <div class="verses">
+        <!-- Verse Share Card -->
+        <div id="verseCard" class="p-4 bg-white rounded shadow verse-share" style="max-width: 700px; margin: 0 auto;">
+            <h4 class="text-center mb-4 text-primary">Verses on <em>@Model.LastTopic</em></h4>
+
             @foreach (var verse in Model.Verses)
             {
-                <div class="verse-card mb-4 p-3 rounded shadow-sm border bg-light fade-in">
-                    <h5><strong>@verse.Verse</strong></h5>
-                    <p class="fst-italic">"@verse.Text"</p>
-                    <p class="text-muted">@verse.Note</p>
+                <div class="mb-3 border-bottom pb-2">
+                    <strong>@verse.Verse</strong>
+                    <p class="fst-italic text-dark mb-1">"@verse.Text"</p>
+                    <p class="text-muted small">@verse.Note</p>
                 </div>
             }
 
-            <div class="text-center mt-5 fade-in">
-                <blockquote class="blockquote">
-                    <p class="mb-0 fw-bold text-success">@Model.Encouragement</p>
-                </blockquote>
-            </div>
+            <blockquote class="blockquote text-center mt-4">
+                <p class="fw-bold text-success">“@Model.Encouragement”</p>
+            </blockquote>
+        </div>
+
+        <!-- Share Button -->
+        <div class="text-center mt-4">
+            <button id="saveImageBtn" class="btn btn-outline-secondary">
+                📸 Save as Devotional Image
+            </button>
         </div>
     }
 </div>
 
 @section Scripts {
+    <!-- html2canvas CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
     <script>
         function showSpinner() {
             document.getElementById("loadingSpinner").style.display = "block";
         }
+
+        document.getElementById("saveImageBtn")?.addEventListener("click", function () {
+            const card = document.getElementById("verseCard");
+            html2canvas(card).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'bible_verses.png';
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+            });
+        });
     </script>
 }
