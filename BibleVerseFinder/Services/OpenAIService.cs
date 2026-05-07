@@ -18,13 +18,29 @@ namespace BibleVerseFinder.Services
 
         public async Task<(List<BibleVerse>, string)> GetBibleVersesAsync(string topic)
         {
+            // First attempt
+            var result = await CallOpenAI(topic);
+
+            if (result.verses.Count > 0)
+                return result;
+
+            // 🔁 Retry once if parsing failed
+            return await CallOpenAI(topic);
+        }
+
+        private async Task<(List<BibleVerse> verses, string encouragement)> CallOpenAI(string topic)
+        {
             string apiKey = _config["OpenAI:ApiKey"];
 
             var prompt = $@"
 A user is struggling with '{topic}'.
 Return 10 Bible verses that relate to this topic.
 
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON.
+Do NOT include trailing commas.
+Ensure all arrays and objects are fully closed.
+
+Format:
 {{
   ""verses"": [
     {{
@@ -55,18 +71,19 @@ Return ONLY valid JSON in this format:
                 }
             };
 
-            var requestJson = JsonSerializer.Serialize(requestData);
-
             var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
             request.Headers.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
-            request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(requestData),
+                Encoding.UTF8,
+                "application/json"
+            );
 
             var response = await _httpClient.SendAsync(request);
             var body = await response.Content.ReadAsStringAsync();
 
-            // 🔍 Debug (keep this while testing)
             Console.WriteLine("RAW RESPONSE:");
             Console.WriteLine(body);
 
@@ -86,10 +103,10 @@ Return ONLY valid JSON in this format:
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
 
-            // ✅ SAFE error handling
-            if (root.TryGetProperty("error", out JsonElement errorElement) &&
-                errorElement.ValueKind == JsonValueKind.Object &&
-                errorElement.TryGetProperty("message", out JsonElement msgEl) &&
+            // ✅ Safe error handling
+            if (root.TryGetProperty("error", out var errorEl) &&
+                errorEl.ValueKind == JsonValueKind.Object &&
+                errorEl.TryGetProperty("message", out var msgEl) &&
                 msgEl.ValueKind == JsonValueKind.String)
             {
                 return (new List<BibleVerse>
@@ -103,37 +120,8 @@ Return ONLY valid JSON in this format:
                 }, "");
             }
 
-            // ✅ SAFE extraction
-            string jsonText = "";
-
-            if (root.TryGetProperty("output", out JsonElement outputArray) &&
-                outputArray.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var outputItem in outputArray.EnumerateArray())
-                {
-                    if (outputItem.ValueKind != JsonValueKind.Object)
-                        continue;
-
-                    if (outputItem.TryGetProperty("content", out JsonElement contentArray) &&
-                        contentArray.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var contentItem in contentArray.EnumerateArray())
-                        {
-                            if (contentItem.ValueKind != JsonValueKind.Object)
-                                continue;
-
-                            if (contentItem.TryGetProperty("type", out var typeEl) &&
-                                typeEl.ValueKind == JsonValueKind.String &&
-                                typeEl.GetString() == "output_text" &&
-                                contentItem.TryGetProperty("text", out var textEl) &&
-                                textEl.ValueKind == JsonValueKind.String)
-                            {
-                                jsonText += textEl.GetString();
-                            }
-                        }
-                    }
-                }
-            }
+            // ✅ Extract text safely
+            string jsonText = ExtractText(root);
 
             if (string.IsNullOrWhiteSpace(jsonText))
             {
@@ -142,13 +130,16 @@ Return ONLY valid JSON in this format:
                     new BibleVerse
                     {
                         Verse = "No Response",
-                        Text = "Model returned empty or unexpected output.",
+                        Text = "Model returned empty output.",
                         Note = "Check raw API response."
                     }
                 }, "");
             }
 
-            // ✅ SAFE deserialization
+            // ✅ Fix JSON if needed
+            jsonText = FixJson(jsonText);
+
+            // ✅ Deserialize safely
             try
             {
                 var parsed = JsonSerializer.Deserialize<BibleResponse>(jsonText,
@@ -162,18 +153,65 @@ Return ONLY valid JSON in this format:
                     parsed?.Encouragement ?? ""
                 );
             }
-            catch (Exception ex)
+            catch
             {
-                return (new List<BibleVerse>
-                {
-                    new BibleVerse
-                    {
-                        Verse = "Parse Error",
-                        Text = "Failed to parse AI response.",
-                        Note = ex.Message
-                    }
-                }, "");
+                return (new List<BibleVerse>(), "");
             }
+        }
+
+        private string ExtractText(JsonElement root)
+        {
+            string result = "";
+
+            if (root.TryGetProperty("output", out var outputArr) &&
+                outputArr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var outputItem in outputArr.EnumerateArray())
+                {
+                    if (outputItem.ValueKind != JsonValueKind.Object)
+                        continue;
+
+                    if (outputItem.TryGetProperty("content", out var contentArr) &&
+                        contentArr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in contentArr.EnumerateArray())
+                        {
+                            if (item.ValueKind != JsonValueKind.Object)
+                                continue;
+
+                            if (item.TryGetProperty("type", out var typeEl) &&
+                                typeEl.GetString() == "output_text" &&
+                                item.TryGetProperty("text", out var textEl) &&
+                                textEl.ValueKind == JsonValueKind.String)
+                            {
+                                result += textEl.GetString();
+                            }
+                        }
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private string FixJson(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return "{}";
+
+            json = json.Trim()
+                       .Replace("```json", "")
+                       .Replace("```", "");
+
+            int openBraces = json.Count(c => c == '{');
+            int closeBraces = json.Count(c => c == '}');
+            int openBrackets = json.Count(c => c == '[');
+            int closeBrackets = json.Count(c => c == ']');
+
+            json += new string('}', Math.Max(0, openBraces - closeBraces));
+            json += new string(']', Math.Max(0, openBrackets - closeBrackets));
+
+            return json;
         }
     }
 
