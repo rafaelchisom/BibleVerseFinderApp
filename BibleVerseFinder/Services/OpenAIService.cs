@@ -35,21 +35,22 @@ Then include a short, encouraging message after the JSON (e.g., ""Take heart, Go
 ";
 
             var requestData = new
-            {
-                model = "gpt-5",
-                messages = new[]
-                {
-            new { role = "system", content = "You are a helpful Bible assistant." },
-            new { role = "user", content = prompt }
-        },
-                temperature = 0.7,
-                max_tokens = 1500
-            };
+{
+    model = "gpt-5.3",
+    input = new[]
+    {
+        new { role = "system", content = "You are a helpful Bible assistant." },
+        new { role = "user", content = prompt }
+    },
+    temperature = 0.7,
+    max_output_tokens = 1500
+};
 
-            var requestJson = JsonSerializer.Serialize(requestData);
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
-            request.Headers.Add("Authorization", $"Bearer {apiKey}");
-            request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+var requestJson = JsonSerializer.Serialize(requestData);
+
+var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
+request.Headers.Add("Authorization", $"Bearer {apiKey}");
+request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request);
             if (!response.IsSuccessStatusCode)
