@@ -34,9 +34,9 @@ Format the response as JSON. Each item should include:
 Then include a short, encouraging message after the JSON (e.g., ""Take heart, God is near."")
 ";
 
-            var requestData = new
+          var requestData = new
 {
-    model = "gpt-5.3",
+    model = "gpt-5-mini",
     input = new[]
     {
         new { role = "system", content = "You are a helpful Bible assistant." },
