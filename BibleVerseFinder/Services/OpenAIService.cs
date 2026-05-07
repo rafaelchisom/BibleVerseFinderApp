@@ -24,7 +24,7 @@ namespace BibleVerseFinder.Services
 A user is struggling with '{topic}'.
 Return 10 Bible verses that relate to this topic.
 
-Format the response strictly as JSON with this structure:
+Return ONLY valid JSON in this format:
 {{
   ""verses"": [
     {{
@@ -38,22 +38,22 @@ Format the response strictly as JSON with this structure:
 ";
 
             var requestData = new
-{
-    model = "gpt-5-mini",
-    input = new[]
-    {
-        new { role = "system", content = "You are a helpful Bible assistant." },
-        new { role = "user", content = prompt }
-    },
-    max_output_tokens = 1500,
-    text = new
-    {
-        format = new
-        {
-            type = "json_object"
-        }
-    }
-};
+            {
+                model = "gpt-5-mini",
+                input = new[]
+                {
+                    new { role = "system", content = "You are a helpful Bible assistant." },
+                    new { role = "user", content = prompt }
+                },
+                max_output_tokens = 1500,
+                text = new
+                {
+                    format = new
+                    {
+                        type = "json_object"
+                    }
+                }
+            };
 
             var requestJson = JsonSerializer.Serialize(requestData);
 
@@ -64,8 +64,11 @@ Format the response strictly as JSON with this structure:
             request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request);
-
             var body = await response.Content.ReadAsStringAsync();
+
+            // 🔍 Debug (keep this while testing)
+            Console.WriteLine("RAW RESPONSE:");
+            Console.WriteLine(body);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -83,8 +86,11 @@ Format the response strictly as JSON with this structure:
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
 
-            // Handle OpenAI error format
-            if (root.TryGetProperty("error", out JsonElement errorElement))
+            // ✅ SAFE error handling
+            if (root.TryGetProperty("error", out JsonElement errorElement) &&
+                errorElement.ValueKind == JsonValueKind.Object &&
+                errorElement.TryGetProperty("message", out JsonElement msgEl) &&
+                msgEl.ValueKind == JsonValueKind.String)
             {
                 return (new List<BibleVerse>
                 {
@@ -92,48 +98,57 @@ Format the response strictly as JSON with this structure:
                     {
                         Verse = "OpenAI Error",
                         Text = "API responded with an error.",
-                        Note = errorElement.GetProperty("message").GetString()
+                        Note = msgEl.GetString()
                     }
                 }, "");
             }
 
+            // ✅ SAFE extraction
             string jsonText = "";
 
-if (root.TryGetProperty("output", out JsonElement outputArray) &&
-    outputArray.ValueKind == JsonValueKind.Array)
-{
-    foreach (var outputItem in outputArray.EnumerateArray())
-    {
-        if (outputItem.TryGetProperty("content", out JsonElement contentArray) &&
-            contentArray.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var contentItem in contentArray.EnumerateArray())
+            if (root.TryGetProperty("output", out JsonElement outputArray) &&
+                outputArray.ValueKind == JsonValueKind.Array)
             {
-                if (contentItem.TryGetProperty("type", out var typeEl) &&
-                    typeEl.GetString() == "output_text" &&
-                    contentItem.TryGetProperty("text", out var textEl) &&
-                    textEl.ValueKind == JsonValueKind.String)
+                foreach (var outputItem in outputArray.EnumerateArray())
                 {
-                    jsonText += textEl.GetString();
+                    if (outputItem.ValueKind != JsonValueKind.Object)
+                        continue;
+
+                    if (outputItem.TryGetProperty("content", out JsonElement contentArray) &&
+                        contentArray.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var contentItem in contentArray.EnumerateArray())
+                        {
+                            if (contentItem.ValueKind != JsonValueKind.Object)
+                                continue;
+
+                            if (contentItem.TryGetProperty("type", out var typeEl) &&
+                                typeEl.ValueKind == JsonValueKind.String &&
+                                typeEl.GetString() == "output_text" &&
+                                contentItem.TryGetProperty("text", out var textEl) &&
+                                textEl.ValueKind == JsonValueKind.String)
+                            {
+                                jsonText += textEl.GetString();
+                            }
+                        }
+                    }
                 }
             }
-        }
-    }
-}
 
-if (string.IsNullOrWhiteSpace(jsonText))
-{
-    return (new List<BibleVerse>
-    {
-        new BibleVerse
-        {
-            Verse = "No Response",
-            Text = "Model returned empty or unexpected output.",
-            Note = "Check raw API response."
-        }
-    }, "");
-}
-            // ✅ Deserialize clean structured JSON
+            if (string.IsNullOrWhiteSpace(jsonText))
+            {
+                return (new List<BibleVerse>
+                {
+                    new BibleVerse
+                    {
+                        Verse = "No Response",
+                        Text = "Model returned empty or unexpected output.",
+                        Note = "Check raw API response."
+                    }
+                }, "");
+            }
+
+            // ✅ SAFE deserialization
             try
             {
                 var parsed = JsonSerializer.Deserialize<BibleResponse>(jsonText,
@@ -142,7 +157,10 @@ if (string.IsNullOrWhiteSpace(jsonText))
                         PropertyNameCaseInsensitive = true
                     });
 
-                return (parsed?.Verses ?? new List<BibleVerse>(), parsed?.Encouragement ?? "");
+                return (
+                    parsed?.Verses ?? new List<BibleVerse>(),
+                    parsed?.Encouragement ?? ""
+                );
             }
             catch (Exception ex)
             {
@@ -159,7 +177,6 @@ if (string.IsNullOrWhiteSpace(jsonText))
         }
     }
 
-    // ✅ Strongly typed response model
     public class BibleResponse
     {
         public List<BibleVerse> Verses { get; set; } = new();
