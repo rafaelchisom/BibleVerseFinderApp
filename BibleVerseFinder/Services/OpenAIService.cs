@@ -97,40 +97,42 @@ Format the response strictly as JSON with this structure:
                 }, "");
             }
 
-            // ✅ Extract text from Responses API
             string jsonText = "";
 
-            if (root.TryGetProperty("output", out JsonElement outputArray) &&
-                outputArray.GetArrayLength() > 0)
+if (root.TryGetProperty("output", out JsonElement outputArray) &&
+    outputArray.ValueKind == JsonValueKind.Array)
+{
+    foreach (var outputItem in outputArray.EnumerateArray())
+    {
+        if (outputItem.TryGetProperty("content", out JsonElement contentArray) &&
+            contentArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var contentItem in contentArray.EnumerateArray())
             {
-                var firstOutput = outputArray[0];
-
-                if (firstOutput.TryGetProperty("content", out JsonElement contentArray))
+                if (contentItem.TryGetProperty("type", out var typeEl) &&
+                    typeEl.GetString() == "output_text" &&
+                    contentItem.TryGetProperty("text", out var textEl) &&
+                    textEl.ValueKind == JsonValueKind.String)
                 {
-                    foreach (var item in contentArray.EnumerateArray())
-                    {
-                        if (item.TryGetProperty("type", out var typeElement) &&
-                            typeElement.GetString() == "output_text")
-                        {
-                            jsonText += item.GetProperty("text").GetString();
-                        }
-                    }
+                    jsonText += textEl.GetString();
                 }
             }
+        }
+    }
+}
 
-            if (string.IsNullOrWhiteSpace(jsonText))
-            {
-                return (new List<BibleVerse>
-                {
-                    new BibleVerse
-                    {
-                        Verse = "No Response",
-                        Text = "Could not extract response text.",
-                        Note = "Unexpected API format."
-                    }
-                }, "");
-            }
-
+if (string.IsNullOrWhiteSpace(jsonText))
+{
+    return (new List<BibleVerse>
+    {
+        new BibleVerse
+        {
+            Verse = "No Response",
+            Text = "Model returned empty or unexpected output.",
+            Note = "Check raw API response."
+        }
+    }, "");
+}
             // ✅ Deserialize clean structured JSON
             try
             {
