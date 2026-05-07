@@ -47,10 +47,13 @@ Format the response strictly as JSON with this structure:
                 },
                 temperature = 0.7,
                 max_output_tokens = 1500,
-                format = new
-                {
-                    type = "json_object"
-                }
+                text = new
+    {
+        format = new
+        {
+            type = "json_object"
+        }
+    }
             };
 
             var requestJson = JsonSerializer.Serialize(requestData);
