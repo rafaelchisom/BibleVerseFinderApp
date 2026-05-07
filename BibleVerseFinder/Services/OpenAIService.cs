@@ -47,7 +47,7 @@ Format the response strictly as JSON with this structure:
                 },
                 temperature = 0.7,
                 max_output_tokens = 1500,
-                response_format = new
+                format = new
                 {
                     type = "json_object"
                 }
