@@ -38,23 +38,22 @@ Format the response strictly as JSON with this structure:
 ";
 
             var requestData = new
-            {
-                model = "gpt-5-mini",
-                input = new[]
-                {
-                    new { role = "system", content = "You are a helpful Bible assistant." },
-                    new { role = "user", content = prompt }
-                },
-                temperature = 0.7,
-                max_output_tokens = 1500,
-                text = new
+{
+    model = "gpt-5-mini",
+    input = new[]
+    {
+        new { role = "system", content = "You are a helpful Bible assistant." },
+        new { role = "user", content = prompt }
+    },
+    max_output_tokens = 1500,
+    text = new
     {
         format = new
         {
             type = "json_object"
         }
     }
-            };
+};
 
             var requestJson = JsonSerializer.Serialize(requestData);
 
