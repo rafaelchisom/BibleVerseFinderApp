@@ -55,7 +55,7 @@ Format:
 
             var requestData = new
             {
-                model = "gpt-5.3",
+                model = "gpt-5.4",
                 input = new[]
                 {
                     new { role = "system", content = "You are a helpful Bible assistant." },
