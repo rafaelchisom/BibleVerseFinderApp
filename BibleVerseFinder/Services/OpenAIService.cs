@@ -36,7 +36,7 @@ Then include a short, encouraging message after the JSON (e.g., ""Take heart, Go
 
             var requestData = new
             {
-                model = "gpt-5-mini",
+                model = "gpt-5",
                 messages = new[]
                 {
             new { role = "system", content = "You are a helpful Bible assistant." },
