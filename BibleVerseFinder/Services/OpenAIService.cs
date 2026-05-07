@@ -1,5 +1,4 @@
-﻿namespace BibleVerseFinder.Services
-
+namespace BibleVerseFinder.Services
 {
     using BibleVerseFinder.Models;
     using System.Net.Http;
@@ -25,137 +24,141 @@
 A user is struggling with '{topic}'.
 Return 10 Bible verses that relate to this topic.
 
-Format the response as JSON. Each item should include:
-- ""verse"": the reference (e.g., ""Philippians 4:6-7"")
-- ""text"": the NIV verse text
-- ""note"": a one-sentence explanation
-- Respond only with valid JSON, no markdown or commentary.
-
-Then include a short, encouraging message after the JSON (e.g., ""Take heart, God is near."")
+Format the response strictly as JSON with this structure:
+{{
+  ""verses"": [
+    {{
+      ""verse"": ""Philippians 4:6-7"",
+      ""text"": ""..."",
+      ""note"": ""...""
+    }}
+  ],
+  ""encouragement"": ""A short encouraging message""
+}}
 ";
 
-          var requestData = new
-{
-    model = "gpt-5-mini",
-    input = new[]
-    {
-        new { role = "system", content = "You are a helpful Bible assistant." },
-        new { role = "user", content = prompt }
-    },
-    temperature = 0.7,
-    max_output_tokens = 1500
-};
+            var requestData = new
+            {
+                model = "gpt-5-mini",
+                input = new[]
+                {
+                    new { role = "system", content = "You are a helpful Bible assistant." },
+                    new { role = "user", content = prompt }
+                },
+                temperature = 0.7,
+                max_output_tokens = 1500,
+                response_format = new
+                {
+                    type = "json_object"
+                }
+            };
 
-var requestJson = JsonSerializer.Serialize(requestData);
+            var requestJson = JsonSerializer.Serialize(requestData);
 
-var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
-request.Headers.Add("Authorization", $"Bearer {apiKey}");
-request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
+            request.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+            request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(request);
-            if (!response.IsSuccessStatusCode)
-            {
-                return (new List<BibleVerse>
-    {
-        new BibleVerse
-        {
-            Verse = "Error",
-            Text = $"OpenAI request failed with status code {response.StatusCode}.",
-            Note = "Please try again later."
-        }
-    }, "");
-            }
 
             var body = await response.Content.ReadAsStringAsync();
 
-            string message;
-           
-
+            if (!response.IsSuccessStatusCode)
+            {
+                return (new List<BibleVerse>
+                {
+                    new BibleVerse
+                    {
+                        Verse = "Error",
+                        Text = $"OpenAI request failed: {response.StatusCode}",
+                        Note = body
+                    }
+                }, "");
+            }
 
             using var doc = JsonDocument.Parse(body);
             var root = doc.RootElement;
 
-            // Handle OpenAI error response
+            // Handle OpenAI error format
             if (root.TryGetProperty("error", out JsonElement errorElement))
             {
-                var errorMessage = errorElement.GetProperty("message").GetString();
                 return (new List<BibleVerse>
-    {
-        new BibleVerse
-        {
-            Verse = "OpenAI Error",
-            Text = "API responded with an error.",
-            Note = errorMessage
-        }
-    }, "Please try again later.");
+                {
+                    new BibleVerse
+                    {
+                        Verse = "OpenAI Error",
+                        Text = "API responded with an error.",
+                        Note = errorElement.GetProperty("message").GetString()
+                    }
+                }, "");
             }
 
-            // Check choices and extract content safely
-            if (root.TryGetProperty("choices", out JsonElement choices) &&
-                choices.GetArrayLength() > 0 &&
-                choices[0].TryGetProperty("message", out JsonElement msgElement) &&
-                msgElement.TryGetProperty("content", out JsonElement contentElement))
+            // ✅ Extract text from Responses API
+            string jsonText = "";
+
+            if (root.TryGetProperty("output", out JsonElement outputArray) &&
+                outputArray.GetArrayLength() > 0)
             {
-                message = contentElement.GetString();
+                var firstOutput = outputArray[0];
+
+                if (firstOutput.TryGetProperty("content", out JsonElement contentArray))
+                {
+                    foreach (var item in contentArray.EnumerateArray())
+                    {
+                        if (item.TryGetProperty("type", out var typeElement) &&
+                            typeElement.GetString() == "output_text")
+                        {
+                            jsonText += item.GetProperty("text").GetString();
+                        }
+                    }
+                }
             }
-            else
+
+            if (string.IsNullOrWhiteSpace(jsonText))
             {
                 return (new List<BibleVerse>
-    {
-        new BibleVerse
-        {
-            Verse = "No Response",
-            Text = "Could not find a valid response from OpenAI.",
-            Note = "Please check your input or try again shortly."
-        }
-    }, "");
+                {
+                    new BibleVerse
+                    {
+                        Verse = "No Response",
+                        Text = "Could not extract response text.",
+                        Note = "Unexpected API format."
+                    }
+                }, "");
             }
 
-
-            // 🧹 Clean the GPT output
-            message = message.Replace("```json", "")
-                             .Replace("```", "")
-                             .Trim();
-
-            // 🧠 Extract only JSON part
-            int startIndex = message.IndexOf("[");
-            int endIndex = message.LastIndexOf("]");
-            string jsonPart = startIndex >= 0 && endIndex > startIndex
-                ? message.Substring(startIndex, endIndex - startIndex + 1)
-                : "[]";
-
-            // Extract encouragement text
-            string encouragement = (endIndex + 1 < message.Length)
-     ? message.Substring(endIndex + 1).TrimStart('}', '\n', '\r', ' ', '.', '-').Trim()
-     : "";
-
-
-            List<BibleVerse> verses = new();
-
+            // ✅ Deserialize clean structured JSON
             try
             {
-                verses = JsonSerializer.Deserialize<List<BibleVerse>>(jsonPart,
+                var parsed = JsonSerializer.Deserialize<BibleResponse>(jsonText,
                     new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
-                    }) ?? new List<BibleVerse>();
+                    });
+
+                return (parsed?.Verses ?? new List<BibleVerse>(), parsed?.Encouragement ?? "");
             }
             catch (Exception ex)
             {
-                // Log or display an error if needed
-                verses = new List<BibleVerse>
-        {
-            new BibleVerse
-            {
-                Verse = "Error",
-                Text = "Could not parse response.",
-                Note = ex.Message
+                return (new List<BibleVerse>
+                {
+                    new BibleVerse
+                    {
+                        Verse = "Parse Error",
+                        Text = "Failed to parse AI response.",
+                        Note = ex.Message
+                    }
+                }, "");
             }
-        };
-            }
-
-            return (verses, encouragement);
         }
+    }
 
+    // ✅ Strongly typed response model
+    public class BibleResponse
+    {
+        public List<BibleVerse> Verses { get; set; } = new();
+        public string Encouragement { get; set; } = "";
     }
 }
